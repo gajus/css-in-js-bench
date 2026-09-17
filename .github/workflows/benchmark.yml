@@ -64,6 +64,22 @@ jobs:
           command -v avifenc >/dev/null || { echo "::error::avifenc not on PATH (install libavif)"; exit 1; }
           command -v mpstat >/dev/null || { echo "::error::mpstat not on PATH (install sysstat)"; exit 1; }
 
+      # Temporary: WPD's 4 GB Chrome trace buffer makes trace reads fail intermittently on this
+      # Linux machine ("Protocol error (IO.read): Read failed" or a malformed trace). 2.2 GB was
+      # tested reliable, so cap at 2 GB. Remove once WPD ships a fix.
+      - name: Patch WPD trace buffer
+        run: |
+          f=vendor/wpd/node_modules/@jantimon/web-performance-debugger/dist/trace/tracing.js
+          if grep -q 'TRACE_BUFFER_SIZE_KB = 2_000_000;' "$f"; then
+            echo "already patched"
+          elif grep -q 'TRACE_BUFFER_SIZE_KB = 4_000_000;' "$f"; then
+            sed -i 's/TRACE_BUFFER_SIZE_KB = 4_000_000;/TRACE_BUFFER_SIZE_KB = 2_000_000;/' "$f"
+            echo "patched"
+          else
+            echo "::error::WPD trace buffer setting changed ($(grep 'TRACE_BUFFER_SIZE_KB =' "$f")); check whether this patch is still needed"
+            exit 1
+          fi
+
       - name: Check machine is idle
         run: |
           sleep 30
